@@ -95,6 +95,13 @@ class ACMOJClient:
 
         return result
 
+    def submit_code(self, problem_id: int, language: str, code: str) -> Optional[Dict]:
+        data = {"language": language, "code": code}
+        result = self._make_request("POST", f"/problem/{problem_id}/submit", data=data)
+        if result and 'id' in result:
+            self._save_submission_id(result['id'])
+        return result
+
     def get_submission_detail(self, submission_id: int) -> Optional[Dict]:
         return self._make_request("GET", f"/submission/{submission_id}")
 
@@ -112,7 +119,9 @@ def main():
     # Git submission sub-command
     submit_parser = subparsers.add_parser("submit", help="Submit Git repository")
     submit_parser.add_argument("--problem-id", type=int, required=True, help="Problem ID")
-    submit_parser.add_argument("--git-url", type=str, required=True, help="Git repository URL")
+    submit_parser.add_argument("--git-url", type=str, help="Git repository URL")
+    submit_parser.add_argument("--language", type=str, choices=["c", "cpp", "git"], default="git", help="Submission language")
+    submit_parser.add_argument("--code-path", type=str, help="Path to source code file for code submission")
 
     # Sub-command for checking submission status
     status_parser = subparsers.add_parser("status", help="Check submission status")
@@ -131,7 +140,18 @@ def main():
     client = ACMOJClient(args.token)
 
     if args.command == "submit":
-        result = client.submit_git(args.problem_id, args.git_url)
+        if args.language == "git":
+            if not args.git_url:
+                print("Error: --git-url is required when language is git")
+                return
+            result = client.submit_git(args.problem_id, args.git_url)
+        else:
+            if not args.code_path:
+                print("Error: --code-path is required for code submissions")
+                return
+            with open(args.code_path, 'r') as f:
+                code = f.read()
+            result = client.submit_code(args.problem_id, args.language, code)
     elif args.command == "status":
         result = client.get_submission_detail(args.submission_id)
     elif args.command == "abort":
